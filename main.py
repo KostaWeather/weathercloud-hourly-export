@@ -15,11 +15,14 @@ SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1ruHPdZpo0U5NN_1qDfb46
 
 async def download_csv():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
 
-        await page.goto("https://app.weathercloud.net/")
+        await page.goto("https://app.weathercloud.net/", wait_until="domcontentloaded")
 
         # Cookie
         try:
@@ -27,40 +30,39 @@ async def download_csv():
         except:
             pass
 
-        # Открываем модалку логина
+        # Открываем логин
         await page.click("text=Войти")
 
-        # Ждём появления поля логина
+        # Ждём форму
         await page.wait_for_selector("input[type='text']", timeout=60000)
 
-        # Заполняем форму
         await page.fill("input[type='text']", WEATHER_LOGIN)
         await page.fill("input[type='password']", WEATHER_PASSWORD)
 
         await page.click("button:has-text('Войти')")
 
-        # Ждём входа
-        await page.wait_for_load_state("networkidle")
+        # 🔥 Ждём появления меню (признак входа)
+        await page.wait_for_selector("text=Database", timeout=60000)
 
-        # Закрываем Upgrade popup если вылез
+        # Закрываем Upgrade если есть
         try:
             await page.click("text=Try it free for 30 days", timeout=3000)
         except:
             pass
 
-        # Идём в database
-        await page.goto("https://app.weathercloud.net/database")
-        await page.wait_for_load_state("networkidle")
+        # Переход в Database
+        await page.click("text=Database")
+        await page.wait_for_selector("text=Export", timeout=60000)
 
-        # Скачиваем CSV
+        # Скачать CSV
         async with page.expect_download() as download_info:
             await page.click("text=Export")
-        download = await download_info.value
 
-        file_path = await download.path()
+        download = await download_info.value
+        path = await download.path()
 
         await browser.close()
-        return file_path
+        return path
 
 def upload_to_sheets(csv_path):
     creds_dict = eval(GOOGLE_CREDENTIALS)
