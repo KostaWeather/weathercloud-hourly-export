@@ -1,17 +1,17 @@
-import asyncio
 import os
-import json
-import tempfile
-import pandas as pd
+import asyncio
+from playwright.async_api import async_playwright
+import csv
 import gspread
 from google.oauth2.service_account import Credentials
-from playwright.async_api import async_playwright
+from datetime import datetime
 
 WEATHER_LOGIN = os.getenv("WEATHER_LOGIN")
 WEATHER_PASSWORD = os.getenv("WEATHER_PASSWORD")
-GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS_JSON")
 
-SPREADSHEET_ID = "1ruHPdZpo0U5NN_1qDfb46QA8x-Zihax6soA7pQ5fvu8"
+GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS_JSON")
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1ruHPdZpo0U5NN_1qDfb46QA8x-Zihax6soA7pQ5fvu8/edit#gid=0"
+
 
 async def download_csv():
     async with async_playwright() as p:
@@ -20,47 +20,70 @@ async def download_csv():
         page = await context.new_page()
 
         await page.goto("https://app.weathercloud.net/")
-        await page.fill('input[name="email"]', WEATHER_LOGIN)
-        await page.fill('input[name="password"]', WEATHER_PASSWORD)
-        await page.click('button[type="submit"]')
-        await page.wait_for_timeout(4000)
 
+        # Cookie banner
+        try:
+            await page.click("text=I agree", timeout=5000)
+        except:
+            pass
+
+        # Нажимаем "Войти"
+        await page.click("text=Войти")
+
+        # Ждём форму
+        await page.wait_for_selector("input[type='text']", timeout=60000)
+
+        await page.fill("input[type='text']", WEATHER_LOGIN)
+        await page.fill("input[type='password']", WEATHER_PASSWORD)
+
+        await page.click("button:has-text('Войти')")
+
+        await page.wait_for_load_state("networkidle")
+
+        # Закрываем popup Upgrade если появится
+        try:
+            await page.click("text=Try it free for 30 days", timeout=3000)
+        except:
+            pass
+
+        # Переходим в Database
         await page.goto("https://app.weathercloud.net/database")
-        await page.wait_for_timeout(3000)
+        await page.wait_for_load_state("networkidle")
 
+        # Нажимаем Export
         async with page.expect_download() as download_info:
             await page.click("text=Export")
-
         download = await download_info.value
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
-        await download.save_as(temp_file.name)
+        file_path = await download.path()
 
         await browser.close()
-        return temp_file.name
+        return file_path
+
 
 def upload_to_sheets(csv_path):
-    creds_dict = json.loads(GOOGLE_CREDENTIALS)
-    creds = Credentials.from_service_account_info(creds_dict)
-    client = gspread.authorize(creds)
+    creds_dict = eval(GOOGLE_CREDENTIALS)
 
-    sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
 
-    df = pd.read_csv(csv_path)
+    gc = gspread.authorize(credentials)
+    sh = gc.open_by_url(SPREADSHEET_URL)
+    worksheet = sh.sheet1
 
-    existing_data = sheet.get_all_values()
-    existing_rows = len(existing_data)
+    with open(csv_path, newline="", encoding="utf-8") as csvfile:
+        reader = csv.reader(csvfile)
+        rows = list(reader)
 
-    new_data = df.values.tolist()
+    worksheet.clear()
+    worksheet.update(rows)
 
-    if existing_rows == 0:
-        sheet.append_rows([df.columns.tolist()])
-        sheet.append_rows(new_data)
-    else:
-        sheet.append_rows(new_data)
 
 async def main():
     csv_path = await download_csv()
     upload_to_sheets(csv_path)
+    print("SUCCESS: Weather data updated.")
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
