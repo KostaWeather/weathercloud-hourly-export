@@ -15,42 +15,44 @@ SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1ruHPdZpo0U5NN_1qDfb46
 
 async def download_csv():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
 
         await page.goto("https://app.weathercloud.net/")
 
-        # Cookie banner
+        # Cookie
         try:
             await page.click("text=I agree", timeout=5000)
         except:
             pass
 
-        # Нажимаем "Войти"
+        # Открываем модалку логина
         await page.click("text=Войти")
 
-        # Ждём форму
+        # Ждём появления поля логина
         await page.wait_for_selector("input[type='text']", timeout=60000)
 
+        # Заполняем форму
         await page.fill("input[type='text']", WEATHER_LOGIN)
         await page.fill("input[type='password']", WEATHER_PASSWORD)
 
         await page.click("button:has-text('Войти')")
 
+        # Ждём входа
         await page.wait_for_load_state("networkidle")
 
-        # Закрываем popup Upgrade если появится
+        # Закрываем Upgrade popup если вылез
         try:
             await page.click("text=Try it free for 30 days", timeout=3000)
         except:
             pass
 
-        # Переходим в Database
+        # Идём в database
         await page.goto("https://app.weathercloud.net/database")
         await page.wait_for_load_state("networkidle")
 
-        # Нажимаем Export
+        # Скачиваем CSV
         async with page.expect_download() as download_info:
             await page.click("text=Export")
         download = await download_info.value
@@ -59,7 +61,6 @@ async def download_csv():
 
         await browser.close()
         return file_path
-
 
 def upload_to_sheets(csv_path):
     creds_dict = eval(GOOGLE_CREDENTIALS)
