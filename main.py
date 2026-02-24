@@ -24,19 +24,9 @@ async def download_csv():
         context = await browser.new_context()
         page = await context.new_page()
 
-        print("Opening Weathercloud...")
-        await page.goto("https://app.weathercloud.net/")
-
-        # Cookie banner
-        try:
-            await page.click("text=I agree", timeout=5000)
-        except:
-            pass
-
-        print("Opening login...")
-        await page.click("text=Login")
-
-        await page.wait_for_selector("input[type='text']")
+        print("Opening login page...")
+        await page.goto("https://app.weathercloud.net/signin")
+        await page.wait_for_load_state("domcontentloaded")
 
         print("Filling credentials...")
         await page.fill("input[type='text']", WEATHER_LOGIN)
@@ -44,7 +34,7 @@ async def download_csv():
 
         await page.click("button[type='submit']")
 
-        # ждём вход
+        # ждём успешного входа
         await page.wait_for_selector("text=Database", timeout=60000)
 
         print("Opening database...")
@@ -62,7 +52,6 @@ async def download_csv():
         response = await resp_info.value
         content = await response.body()
 
-        # сохраняем во временный файл
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".csv")
         tmp_file.write(content)
         tmp_file.close()
