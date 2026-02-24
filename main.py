@@ -7,6 +7,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from playwright.async_api import async_playwright
 
+
 WEATHER_LOGIN = os.environ["WEATHER_LOGIN"]
 WEATHER_PASSWORD = os.environ["WEATHER_PASSWORD"]
 GOOGLE_CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
@@ -34,12 +35,17 @@ async def download_csv():
 
         await page.click("button[type='submit']")
 
-        # ждём успешного входа
+        # ждём вход
         await page.wait_for_selector("text=Database", timeout=60000)
 
         print("Opening database...")
         await page.goto("https://app.weathercloud.net/database")
         await page.wait_for_load_state("networkidle")
+
+        print("Waiting for export button...")
+
+        export_button = page.locator("button").filter(has_text="Export").first
+        await export_button.wait_for(state="visible", timeout=60000)
 
         print("Triggering export...")
 
@@ -47,7 +53,7 @@ async def download_csv():
             lambda response: "/data/csv/" in response.url
             and response.request.method == "POST"
         ) as resp_info:
-            await page.click("text=Export")
+            await export_button.click()
 
         response = await resp_info.value
         content = await response.body()
