@@ -7,9 +7,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# =========================
-# ENV
-# =========================
 WEATHER_LOGIN = os.getenv("WEATHER_LOGIN")
 WEATHER_PASSWORD = os.getenv("WEATHER_PASSWORD")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
@@ -17,9 +14,6 @@ GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
 SPREADSHEET_ID = "1ruHPdZpo0U5NN_1qDfb46QA8x-Zihax6soA7pQ5fvu8"
 
 
-# =========================
-# DOWNLOAD CSV
-# =========================
 async def download_csv():
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -31,35 +25,34 @@ async def download_csv():
         page = await context.new_page()
 
         print("Opening Weathercloud...")
-        await page.goto("https://app.weathercloud.net/")
+        await page.goto("https://app.weathercloud.net/", wait_until="domcontentloaded")
 
-        # Cookie
+        # Accept cookies if present
         try:
             await page.click("text=I agree", timeout=5000)
         except:
             pass
 
-        print("Opening login modal...")
-        await page.click("text=Войти")
+        print("Opening login...")
 
-        await page.wait_for_selector("input[type='text']", timeout=60000)
+        # Универсальная кнопка логина (не зависит от языка)
+        await page.click("a[href*='login']")
+
+        await page.wait_for_selector("input[type='email'], input[type='text']", timeout=60000)
 
         print("Filling credentials...")
-        await page.fill("input[type='text']", WEATHER_LOGIN)
+
+        await page.fill("input[type='email'], input[type='text']", WEATHER_LOGIN)
         await page.fill("input[type='password']", WEATHER_PASSWORD)
 
-        await page.click("button:has-text('Войти')")
+        await page.click("button[type='submit']")
 
-        await page.wait_for_load_state("networkidle")
+        # Ждём успешного входа
+        await page.wait_for_selector("a[href*='database']", timeout=60000)
 
-        # Upgrade popup если есть
-        try:
-            await page.click("text=Try it free for 30 days", timeout=3000)
-        except:
-            pass
-
+        print("Opening database...")
         await page.goto("https://app.weathercloud.net/database")
-        await page.wait_for_load_state("networkidle")
+        await page.wait_for_selector("text=Export", timeout=60000)
 
         print("Downloading CSV...")
         async with page.expect_download() as download_info:
@@ -67,7 +60,6 @@ async def download_csv():
 
         download = await download_info.value
 
-        # 🔥 ВАЖНО — сохраняем вручную
         file_path = "/tmp/weather.csv"
         await download.save_as(file_path)
 
@@ -77,9 +69,6 @@ async def download_csv():
         return file_path
 
 
-# =========================
-# UPLOAD TO GOOGLE SHEETS
-# =========================
 def upload_to_sheets(csv_path):
     print("Uploading to Google Sheets...")
 
@@ -106,9 +95,6 @@ def upload_to_sheets(csv_path):
     print("Upload complete")
 
 
-# =========================
-# MAIN
-# =========================
 async def main():
     csv_path = await download_csv()
     upload_to_sheets(csv_path)
