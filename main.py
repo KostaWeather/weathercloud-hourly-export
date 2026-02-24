@@ -1,15 +1,11 @@
-import asyncio
 import os
 import csv
 import json
-from playwright.async_api import async_playwright
+import requests
 import gspread
 from google.oauth2.service_account import Credentials
 
 
-# =========================
-# ENV
-# =========================
 WEATHER_LOGIN = os.getenv("WEATHER_LOGIN")
 WEATHER_PASSWORD = os.getenv("WEATHER_PASSWORD")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
@@ -17,70 +13,56 @@ GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
 SPREADSHEET_ID = "1ruHPdZpo0U5NN_1qDfb46QA8x-Zihax6soA7pQ5fvu8"
 
 
-# =========================
-# DOWNLOAD CSV
-# =========================
-async def download_csv():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
-        )
+def download_csv():
+    session = requests.Session()
 
-        context = await browser.new_context(accept_downloads=True)
-        page = await context.new_page()
+    # 1️⃣ Получаем страницу логина чтобы получить csrf-token
+    r = session.get("https://app.weathercloud.net/login")
+    r.raise_for_status()
 
-        print("Opening Weathercloud...")
-        await page.goto("https://app.weathercloud.net/", wait_until="domcontentloaded")
+    # Laravel CSRF
+    import re
+    token = re.search(r'name="csrf-token" content="([^"]+)"', r.text)
+    if not token:
+        raise Exception("CSRF token not found")
 
-        # Accept cookies
-        try:
-            await page.click("text=I agree", timeout=5000)
-        except:
-            pass
+    csrf_token = token.group(1)
 
-        print("Opening login...")
-        await page.click("a[href*='login']")
-        await page.wait_for_selector("input[type='password']", timeout=60000)
+    # 2️⃣ Логинимся
+    login_data = {
+        "_token": csrf_token,
+        "email": WEATHER_LOGIN,
+        "password": WEATHER_PASSWORD
+    }
 
-        print("Filling credentials...")
-        await page.fill("input[type='email'], input[type='text']", WEATHER_LOGIN)
-        await page.fill("input[type='password']", WEATHER_PASSWORD)
+    headers = {
+        "Referer": "https://app.weathercloud.net/login"
+    }
 
-        # Submit form
-        await page.click("form button[type='submit']")
+    r = session.post(
+        "https://app.weathercloud.net/login",
+        data=login_data,
+        headers=headers
+    )
 
-        # Ждём появления ссылки на database
-        await page.wait_for_selector("a[href*='database']", timeout=60000)
+    r.raise_for_status()
 
-        print("Opening database...")
-        await page.goto("https://app.weathercloud.net/database")
-        await page.wait_for_load_state("networkidle")
+    # 3️⃣ Запрашиваем CSV напрямую
+    csv_response = session.get("https://app.weathercloud.net/database/export")
 
-        print("Triggering export...")
+    csv_response.raise_for_status()
 
-        # НЕ ищем текст Export
-        # Просто ловим первый download, который произойдёт
-        async with page.expect_download() as download_info:
-            await page.locator("button").filter(has_text="Export").first.click()
+    if "text/csv" not in csv_response.headers.get("Content-Type", ""):
+        raise Exception("Did not receive CSV file")
 
-        download = await download_info.value
+    file_path = "/tmp/weather.csv"
+    with open(file_path, "wb") as f:
+        f.write(csv_response.content)
 
-        file_path = "/tmp/weather.csv"
-        await download.save_as(file_path)
-
-        await browser.close()
-
-        print("Download complete")
-        return file_path
+    return file_path
 
 
-# =========================
-# UPLOAD TO GOOGLE SHEETS
-# =========================
 def upload_to_sheets(csv_path):
-    print("Uploading to Google Sheets...")
-
     creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
 
     scopes = [
@@ -101,16 +83,11 @@ def upload_to_sheets(csv_path):
 
     worksheet.update("A1", reader)
 
-    print("Upload complete")
 
-
-# =========================
-# MAIN
-# =========================
-async def main():
-    csv_path = await download_csv()
+def main():
+    csv_path = download_csv()
     upload_to_sheets(csv_path)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
