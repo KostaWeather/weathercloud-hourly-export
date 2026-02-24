@@ -7,6 +7,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
+# =========================
+# ENV
+# =========================
 WEATHER_LOGIN = os.getenv("WEATHER_LOGIN")
 WEATHER_PASSWORD = os.getenv("WEATHER_PASSWORD")
 GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
@@ -14,6 +17,9 @@ GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
 SPREADSHEET_ID = "1ruHPdZpo0U5NN_1qDfb46QA8x-Zihax6soA7pQ5fvu8"
 
 
+# =========================
+# DOWNLOAD CSV
+# =========================
 async def download_csv():
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -27,36 +33,36 @@ async def download_csv():
         print("Opening Weathercloud...")
         await page.goto("https://app.weathercloud.net/", wait_until="domcontentloaded")
 
-        # Accept cookies if present
+        # Accept cookies
         try:
             await page.click("text=I agree", timeout=5000)
         except:
             pass
 
         print("Opening login...")
-
-        # Универсальная кнопка логина (не зависит от языка)
         await page.click("a[href*='login']")
-
-        await page.wait_for_selector("input[type='email'], input[type='text']", timeout=60000)
+        await page.wait_for_selector("input[type='password']", timeout=60000)
 
         print("Filling credentials...")
-
         await page.fill("input[type='email'], input[type='text']", WEATHER_LOGIN)
         await page.fill("input[type='password']", WEATHER_PASSWORD)
 
-        await page.click("button[type='submit']")
+        # Submit form
+        await page.click("form button[type='submit']")
 
-        # Ждём успешного входа
+        # Ждём появления ссылки на database
         await page.wait_for_selector("a[href*='database']", timeout=60000)
 
         print("Opening database...")
         await page.goto("https://app.weathercloud.net/database")
-        await page.wait_for_selector("text=Export", timeout=60000)
+        await page.wait_for_load_state("networkidle")
 
-        print("Downloading CSV...")
+        print("Triggering export...")
+
+        # НЕ ищем текст Export
+        # Просто ловим первый download, который произойдёт
         async with page.expect_download() as download_info:
-            await page.click("text=Export")
+            await page.locator("button").filter(has_text="Export").first.click()
 
         download = await download_info.value
 
@@ -69,6 +75,9 @@ async def download_csv():
         return file_path
 
 
+# =========================
+# UPLOAD TO GOOGLE SHEETS
+# =========================
 def upload_to_sheets(csv_path):
     print("Uploading to Google Sheets...")
 
@@ -95,6 +104,9 @@ def upload_to_sheets(csv_path):
     print("Upload complete")
 
 
+# =========================
+# MAIN
+# =========================
 async def main():
     csv_path = await download_csv()
     upload_to_sheets(csv_path)
