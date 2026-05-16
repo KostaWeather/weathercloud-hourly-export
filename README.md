@@ -33,11 +33,6 @@ The static website is in [`site/`](site/). It works in Russian and English, asks
 
 
 
-
-### GitHub Pages public URL
-
-The repository root includes `index.html` as a GitHub Pages fallback. If Pages publishes the repository root, this file redirects visitors to `site/` so the public URL opens the weather presenter instead of rendering this README.
-
 ### Публикация в облаке
 
 Для публикации сайта без локального запуска добавлен GitHub Pages workflow и конфиг Netlify. Подробные шаги описаны в [`CLOUD_DEPLOY_RU.md`](CLOUD_DEPLOY_RU.md).

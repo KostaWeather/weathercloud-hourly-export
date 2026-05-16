@@ -7,7 +7,6 @@ on:
       - work
     paths:
       - "site/**"
-      - "index.html"
       - "README.md"
       - "RUN_SITE_RU.md"
       - "CLOUD_DEPLOY_RU.md"
