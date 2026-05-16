@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weather Muse — bilingual weather presenter</title>
+    <meta
+      name="description"
+      content="Bilingual Russian and English weather presenter with Open-Meteo weather data and OpenStreetMap background."
+    />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero" aria-labelledby="app-title">
+        <div id="map" class="map" aria-hidden="true"></div>
+        <div class="aurora aurora-one"></div>
+        <div class="aurora aurora-two"></div>
+
+        <header class="topbar">
+          <a class="brand" href="#" aria-label="Weather Muse home">
+            <span class="brand-mark">☀</span>
+            <span>Weather Muse</span>
+          </a>
+          <div class="language-switcher" role="group" aria-label="Language selector">
+            <button class="lang-button is-active" type="button" data-lang="ru">RU</button>
+            <button class="lang-button" type="button" data-lang="en">EN</button>
+          </div>
+        </header>
+
+        <div class="content-grid">
+          <section class="control-panel glass-card" aria-labelledby="app-title">
+            <p class="eyebrow" data-i18n="eyebrow">Погодная ведущая с ИИ</p>
+            <h1 id="app-title" data-i18n="title">Узнайте прогноз для своего города</h1>
+            <p class="lead" data-i18n="lead">
+              Выберите город и страну — цифровая ведущая расскажет текущую погоду или прогноз на несколько дней.
+            </p>
+
+            <form id="weather-form" class="weather-form">
+              <label>
+                <span data-i18n="cityLabel">Город</span>
+                <input id="city" name="city" type="text" autocomplete="address-level2" placeholder="Москва" required />
+              </label>
+              <label>
+                <span data-i18n="countryLabel">Страна</span>
+                <input id="country" name="country" type="text" autocomplete="country-name" placeholder="Россия" required />
+              </label>
+              <fieldset class="forecast-mode">
+                <legend data-i18n="forecastLegend">Период прогноза</legend>
+                <label>
+                  <input type="radio" name="mode" value="current" checked />
+                  <span data-i18n="modeCurrent">Сейчас</span>
+                </label>
+                <label>
+                  <input type="radio" name="mode" value="3" />
+                  <span data-i18n="mode3">3 дня</span>
+                </label>
+                <label>
+                  <input type="radio" name="mode" value="10" />
+                  <span data-i18n="mode10">7–10 дней</span>
+                </label>
+              </fieldset>
+              <button class="primary-button" type="submit" data-i18n="submit">Показать прогноз</button>
+            </form>
+
+            <p id="status" class="status" role="status" aria-live="polite"></p>
+            <div class="source-note">
+              <span data-i18n="sourcePrefix">Данные:</span>
+              <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a>,
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+            </div>
+          </section>
+
+          <section class="presenter-stage" aria-label="AI weather presenter">
+            <div class="speech-bubble glass-card">
+              <p id="speech-text" data-i18n="welcomeSpeech">
+                Привет! Я готова рассказать прогноз. Введите город и выберите период.
+              </p>
+            </div>
+            <div class="avatar-card glass-card">
+              <div class="avatar" aria-hidden="true">
+                <div class="hair hair-back"></div>
+                <div class="head">
+                  <div class="hair fringe"></div>
+                  <div class="eye eye-left"></div>
+                  <div class="eye eye-right"></div>
+                  <div class="smile"></div>
+                </div>
+                <div class="neck"></div>
+                <div class="body">
+                  <div class="swimsuit top-left"></div>
+                  <div class="swimsuit top-right"></div>
+                  <div class="torso"></div>
+                  <div class="arm arm-left"></div>
+                  <div class="arm arm-right"></div>
+                </div>
+                <div class="weather-orb" id="weather-orb">☀</div>
+              </div>
+              <div class="equalizer" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="forecast-section" aria-labelledby="forecast-title">
+        <div class="section-heading">
+          <p class="eyebrow" data-i18n="forecastEyebrow">Прогноз</p>
+          <h2 id="forecast-title" data-i18n="forecastTitle">Карточки погоды</h2>
+        </div>
+        <div id="forecast-cards" class="forecast-cards"></div>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
